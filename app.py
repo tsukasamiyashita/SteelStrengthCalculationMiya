@@ -7,32 +7,38 @@ import time
 import threading
 import webbrowser
 
-# --- 1. 自動起動とブラウザ強制オープンの仕掛け ---
-if "STREAMLIT_RUNNING" not in os.environ:
-    # 初回起動時のメールアドレス入力をスキップする設定ファイルを作成
-    streamlit_dir = pathlib.Path.home() / ".streamlit"
-    streamlit_dir.mkdir(exist_ok=True)
-    credentials_file = streamlit_dir / "credentials.toml"
-    
-    if not credentials_file.exists():
-        credentials_file.write_text('[general]\nemail = ""\n')
+# --- 1. 自動起動とexe化(PyInstaller)対応の仕掛け ---
+def open_browser():
+    time.sleep(2)  # サーバーが立ち上がるまで2秒待機
+    webbrowser.open("http://localhost:8501")
 
-    os.environ["STREAMLIT_RUNNING"] = "1"
-    os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
-    
-    # Streamlit標準のブラウザ起動機能をオフにする（2重起動防止）
-    os.environ["STREAMLIT_SERVER_HEADLESS"] = "true"
-    
-    # 強制的にブラウザを開く関数（別スレッドで1回だけ実行）
-    def open_browser():
-        time.sleep(2)  # サーバーが立ち上がるまで2秒待機
-        webbrowser.open("http://localhost:8501")
+if __name__ == "__main__":
+    # ▼ PyInstallerでexe化された場合の処理
+    if getattr(sys, 'frozen', False):
+        import streamlit.web.cli as stcli
+        # exe内に一時展開された app.py のパスを取得して実行
+        script_path = os.path.join(sys._MEIPASS, "app.py")
+        sys.argv = ["streamlit", "run", script_path, "--server.headless=true", "--browser.gatherUsageStats=false"]
+        
+        threading.Thread(target=open_browser, daemon=True).start()
+        sys.exit(stcli.main())
+        
+    # ▼ 通常の python app.py 実行の場合
+    elif "STREAMLIT_RUNNING" not in os.environ:
+        streamlit_dir = pathlib.Path.home() / ".streamlit"
+        streamlit_dir.mkdir(exist_ok=True)
+        credentials_file = streamlit_dir / "credentials.toml"
+        
+        if not credentials_file.exists():
+            credentials_file.write_text('[general]\nemail = ""\n')
 
-    threading.Thread(target=open_browser, daemon=True).start()
-    
-    # Streamlitを実行し、このプロセスで待機する
-    subprocess.run([sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)])
-    sys.exit()
+        os.environ["STREAMLIT_RUNNING"] = "1"
+        os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+        os.environ["STREAMLIT_SERVER_HEADLESS"] = "true"
+        
+        threading.Thread(target=open_browser, daemon=True).start()
+        subprocess.run([sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)])
+        sys.exit()
 
 # --- 2. ここからStreamlitのメイン処理 ---
 import streamlit as st
