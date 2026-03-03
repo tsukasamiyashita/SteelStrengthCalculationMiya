@@ -22,15 +22,17 @@ if __name__ == "__main__":
     # ▼ PyInstallerでexe化された場合の処理
     if getattr(sys, 'frozen', False):
         import streamlit.web.cli as stcli
-        # exe内に一時展開された app.py のパスを取得して実行
-        script_path = os.path.join(sys._MEIPASS, "app.py")
         
-        # サーバー起動設定（localhostへのバインドを明示し、接続エラーを防止）
+        # 実行時のカレントディレクトリを、解凍された一時フォルダ(sys._MEIPASS)に変更
+        # これにより内部ファイルやreadmeの読み込みエラーを防止します
+        os.chdir(sys._MEIPASS)
+        
+        # サーバー起動設定（127.0.0.1を明示し、localhostの名前解決による404/接続エラーを防止）
         sys.argv = [
-            "streamlit", "run", script_path, 
+            "streamlit", "run", "app.py", 
             "--server.headless=false", 
             "--browser.gatherUsageStats=false",
-            "--server.address=localhost",
+            "--server.address=127.0.0.1",
             "--global.developmentMode=false"
         ]
         
@@ -42,7 +44,7 @@ if __name__ == "__main__":
         os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
         os.environ["STREAMLIT_SERVER_HEADLESS"] = "false"
         
-        subprocess.run([sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__), "--server.address=localhost"])
+        subprocess.run([sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__), "--server.address=127.0.0.1"])
         sys.exit()
 
 # --- 2. ここからStreamlitのメイン処理 ---
@@ -60,7 +62,7 @@ def get_readme_text():
             with open(readme_path, "r", encoding="utf-8") as f:
                 return f.read()
         else:
-            return "readme.md が見つかりません。同じフォルダに readme.md が配置されているか確認してください。"
+            return "readme.md が見つかりません。コンパイル時に含まれているか確認してください。"
     except Exception as e:
         return f"読み込みエラー: {e}"
 
@@ -546,7 +548,6 @@ elif calc_mode == "ワイヤーロープの計算":
         st.write(f"吊り角度: **{angle}** 度")
         st.metric("システム全体の許容荷重", f"{total_safe_load:.2f} kg")
         st.caption("※端末処理の効率（アイ加工やクリップ留めによる強度低下係数）は1.0として計算しています。実際の運用ではさらに20%〜程度の強度低下を見込んでください。")
-
 
 # --- サイドバー：アプリ情報・Readme表示 ---
 with st.sidebar:
