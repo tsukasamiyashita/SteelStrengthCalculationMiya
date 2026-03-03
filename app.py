@@ -3,36 +3,46 @@ import sys
 import subprocess
 import pathlib
 import math
+import multiprocessing
 
 # バージョン情報
 APP_VERSION = "v1.1.0"
 
 if __name__ == "__main__":
+    # exe化時のマルチプロセス（子プロセス生成）を安全に行うための記述
+    multiprocessing.freeze_support()
+
+    # Streamlitの初期設定ファイル(credentials)が存在しない場合のエラー回避
+    streamlit_dir = pathlib.Path.home() / ".streamlit"
+    streamlit_dir.mkdir(exist_ok=True)
+    credentials_file = streamlit_dir / "credentials.toml"
+    if not credentials_file.exists():
+        credentials_file.write_text('[general]\nemail = ""\n')
+
     # ▼ PyInstallerでexe化された場合の処理
     if getattr(sys, 'frozen', False):
         import streamlit.web.cli as stcli
         # exe内に一時展開された app.py のパスを取得して実行
         script_path = os.path.join(sys._MEIPASS, "app.py")
-        # headlessをfalseにしてStreamlit標準のブラウザ自動起動を有効化
-        sys.argv = ["streamlit", "run", script_path, "--server.headless=false", "--browser.gatherUsageStats=false"]
+        
+        # サーバー起動設定（localhostへのバインドを明示し、接続エラーを防止）
+        sys.argv = [
+            "streamlit", "run", script_path, 
+            "--server.headless=false", 
+            "--browser.gatherUsageStats=false",
+            "--server.address=localhost",
+            "--global.developmentMode=false"
+        ]
         
         sys.exit(stcli.main())
         
     # ▼ 通常の python app.py 実行の場合
     elif "STREAMLIT_RUNNING" not in os.environ:
-        streamlit_dir = pathlib.Path.home() / ".streamlit"
-        streamlit_dir.mkdir(exist_ok=True)
-        credentials_file = streamlit_dir / "credentials.toml"
-        
-        if not credentials_file.exists():
-            credentials_file.write_text('[general]\nemail = ""\n')
-
         os.environ["STREAMLIT_RUNNING"] = "1"
         os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
-        # headlessをfalseにしてStreamlit標準のブラウザ自動起動を有効化
         os.environ["STREAMLIT_SERVER_HEADLESS"] = "false"
         
-        subprocess.run([sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)])
+        subprocess.run([sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__), "--server.address=localhost"])
         sys.exit()
 
 # --- 2. ここからStreamlitのメイン処理 ---
