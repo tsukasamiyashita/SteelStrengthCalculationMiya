@@ -513,6 +513,14 @@ def main():
             st.write(f"**バージョン:** {APP_VERSION}")
             st.markdown("---")
             st.markdown(get_readme_text())
+        
+        # ▼ 今回追加した「終了ボタン」の機能 ▼
+        st.divider()
+        st.markdown("**⚠️ アプリの終了方法**")
+        st.caption("次回も正常に起動できるよう、必ず下のボタンから終了してください。")
+        if st.button("🛑 アプリを完全に終了する", use_container_width=True):
+            st.success("システムを終了しました。ブラウザのタブ（またはウィンドウ）を閉じてください。")
+            os._exit(0)
 
 if __name__ == "__main__":
     main()
