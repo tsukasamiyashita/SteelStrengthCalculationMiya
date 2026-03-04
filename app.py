@@ -1,10 +1,73 @@
 import os
 import sys
 import math
-import streamlit as st
+import subprocess
+import pathlib
+import multiprocessing
 
 # バージョン情報
 APP_VERSION = "v1.1.0"
+PORT = 8501  # Streamlitが使用するポート番号
+
+# ==========================================
+# 【重要】起動・プロセス管理 (ブラウザの×ボタン対策)
+# ==========================================
+# Streamlitが裏で実行中かどうかのフラグを確認します
+if __name__ == "__main__" and os.environ.get("STREAMLIT_APP_RUNNING") != "1":
+    # exe化時のマルチプロセス（子プロセス生成）を安全に行うための記述
+    multiprocessing.freeze_support()
+    
+    # Streamlitの設定ファイル作成（エラー防止）
+    streamlit_dir = pathlib.Path.home() / ".streamlit"
+    streamlit_dir.mkdir(exist_ok=True)
+    credentials_file = streamlit_dir / "credentials.toml"
+    if not credentials_file.exists():
+        credentials_file.write_text('[general]\nemail = ""\n')
+
+    # ▼ 前回のゾンビプロセス（閉じ残し）をキルする処理 ▼
+    try:
+        # Windowsのコマンドを使い、指定ポートを使用中のプロセスを探す
+        output = subprocess.check_output(f"netstat -ano | findstr :{PORT}", shell=True).decode()
+        for line in output.strip().split('\n'):
+            if "LISTENING" in line:
+                pid = line.strip().split()[-1]
+                # 自分自身でなければ、古いプロセスを強制終了してポートを解放する
+                if str(os.getpid()) != pid:
+                    subprocess.call(f"taskkill /F /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass  # プロセスが見つからない場合はそのまま進む
+
+    # このプロセスがStreamlitを起動する親になるためのフラグを設定
+    os.environ["STREAMLIT_APP_RUNNING"] = "1"
+
+    # ▼ Streamlitの起動処理 ▼
+    import streamlit.web.cli as stcli
+    if getattr(sys, 'frozen', False):
+        # exeとして実行された場合
+        os.chdir(sys._MEIPASS)
+        sys.argv = [
+            "streamlit", "run", "app.py",
+            f"--server.port={PORT}",
+            "--server.headless=false",
+            "--browser.gatherUsageStats=false",
+            "--server.address=127.0.0.1",
+            "--global.developmentMode=false"
+        ]
+    else:
+        # Pythonスクリプトとして実行された場合
+        sys.argv = [
+            "streamlit", "run", "app.py",
+            f"--server.port={PORT}",
+            "--server.headless=false",
+            "--server.address=127.0.0.1"
+        ]
+    
+    sys.exit(stcli.main())
+
+# ==========================================
+# ここから下は Streamlit の UI・メインロジック
+# ==========================================
+import streamlit as st
 
 def get_readme_text():
     """readme.mdを読み込む関数"""
@@ -513,14 +576,6 @@ def main():
             st.write(f"**バージョン:** {APP_VERSION}")
             st.markdown("---")
             st.markdown(get_readme_text())
-        
-        # ▼ 今回追加した「終了ボタン」の機能 ▼
-        st.divider()
-        st.markdown("**⚠️ アプリの終了方法**")
-        st.caption("次回も正常に起動できるよう、必ず下のボタンから終了してください。")
-        if st.button("🛑 アプリを完全に終了する", use_container_width=True):
-            st.success("システムを終了しました。ブラウザのタブ（またはウィンドウ）を閉じてください。")
-            os._exit(0)
 
 if __name__ == "__main__":
     main()
