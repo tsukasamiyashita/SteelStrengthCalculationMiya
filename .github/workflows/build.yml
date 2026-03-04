@@ -15,7 +15,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11' # 安定性のた3.11を推奨しますが、3.13でも動作可能です
+        python-version: '3.11'
 
     - name: Install dependencies
       run: |
@@ -27,12 +27,12 @@ jobs:
       run: >
         pyinstaller 
         --onefile 
-        --noconsole 
+        --windowed 
         --name "SteelStrengthCalculationMiya-v1.1.0" 
         --collect-all streamlit 
-        --add-data "readme.md;." 
+        --add-data "app.py;." 
         --copy-metadata streamlit 
-        app.py
+        run_app.py
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
