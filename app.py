@@ -7,65 +7,62 @@ import multiprocessing
 
 # バージョン情報
 APP_VERSION = "v1.1.0"
-PORT = 8501  # Streamlitが使用するポート番号
+PORT = 8501
 
 # ==========================================
-# 【重要】起動・プロセス管理 (ブラウザの×ボタン対策)
+# 起動・プロセス管理 (二重起動の防止とクリーンアップ)
 # ==========================================
-# Streamlitが裏で実行中かどうかのフラグを確認します
-if __name__ == "__main__" and os.environ.get("STREAMLIT_APP_RUNNING") != "1":
-    # exe化時のマルチプロセス（子プロセス生成）を安全に行うための記述
+if __name__ == "__main__":
+    # exe化時のマルチプロセスを安全に行うための記述
     multiprocessing.freeze_support()
-    
-    # Streamlitの設定ファイル作成（エラー防止）
-    streamlit_dir = pathlib.Path.home() / ".streamlit"
-    streamlit_dir.mkdir(exist_ok=True)
-    credentials_file = streamlit_dir / "credentials.toml"
-    if not credentials_file.exists():
-        credentials_file.write_text('[general]\nemail = ""\n')
 
-    # ▼ 前回のゾンビプロセス（閉じ残し）をキルする処理 ▼
-    try:
-        # Windowsのコマンドを使い、指定ポートを使用中のプロセスを探す
-        output = subprocess.check_output(f"netstat -ano | findstr :{PORT}", shell=True).decode()
-        for line in output.strip().split('\n'):
-            if "LISTENING" in line:
-                pid = line.strip().split()[-1]
-                # 自分自身でなければ、古いプロセスを強制終了してポートを解放する
-                if str(os.getpid()) != pid:
-                    subprocess.call(f"taskkill /F /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except Exception:
-        pass  # プロセスが見つからない場合はそのまま進む
+    # sys.argv の長さが 1 の時だけ「ランチャー（起動係）」として動かします。
+    # Streamlitが裏で動いている時は長さが2以上になるため、この部分はスキップされます。
+    if len(sys.argv) == 1:
+        
+        # Streamlitの設定ファイル作成（エラー防止）
+        streamlit_dir = pathlib.Path.home() / ".streamlit"
+        streamlit_dir.mkdir(exist_ok=True)
+        credentials_file = streamlit_dir / "credentials.toml"
+        if not credentials_file.exists():
+            credentials_file.write_text('[general]\nemail = ""\n')
 
-    # このプロセスがStreamlitを起動する親になるためのフラグを設定
-    os.environ["STREAMLIT_APP_RUNNING"] = "1"
+        # ▼ 前回ブラウザの「×」で閉じて残ってしまったプロセスを強制終了して綺麗にする ▼
+        try:
+            output = subprocess.check_output("netstat -ano", shell=True).decode()
+            for line in output.strip().split('\n'):
+                # 8501ポートを使用中で、かつLISTENING状態のものを探す
+                if f":{PORT}" in line and "LISTENING" in line:
+                    pid = line.strip().split()[-1]
+                    # 今動かそうとしている自分自身のプロセスでなければ強制終了
+                    if str(os.getpid()) != pid:
+                        subprocess.call(f"taskkill /F /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass  # 何も見つからなければそのまま進む
 
-    # ▼ Streamlitの起動処理 ▼
-    import streamlit.web.cli as stcli
-    if getattr(sys, 'frozen', False):
-        # exeとして実行された場合
-        os.chdir(sys._MEIPASS)
-        sys.argv = [
-            "streamlit", "run", "app.py",
-            f"--server.port={PORT}",
-            "--server.headless=false",
-            "--browser.gatherUsageStats=false",
-            "--server.address=127.0.0.1",
-            "--global.developmentMode=false"
-        ]
-    else:
-        # Pythonスクリプトとして実行された場合
-        sys.argv = [
-            "streamlit", "run", "app.py",
-            f"--server.port={PORT}",
-            "--server.headless=false",
-            "--server.address=127.0.0.1"
-        ]
-    
-    sys.exit(stcli.main())
+        # ▼ Streamlitを起動する ▼
+        if getattr(sys, 'frozen', False):
+            # exeとして実行されている場合
+            import streamlit.web.cli as stcli
+            os.chdir(sys._MEIPASS)
+            # Streamlitを起動するための「呪文（引数）」をセット
+            sys.argv = [
+                "streamlit", "run", "app.py",
+                f"--server.port={PORT}",
+                "--server.headless=false",
+                "--browser.gatherUsageStats=false",
+                "--server.address=127.0.0.1",
+                "--global.developmentMode=false"
+            ]
+            sys.exit(stcli.main())
+        else:
+            # 開発環境で python app.py と実行した場合
+            subprocess.run([sys.executable, "-m", "streamlit", "run", __file__, f"--server.port={PORT}", "--server.address=127.0.0.1"])
+            sys.exit()
 
 # ==========================================
-# ここから下は Streamlit の UI・メインロジック
+# ここから下は Streamlit によって読み込まれるUI・メインロジック
+# (Streamlit実行時は上のランチャー部分がスキップされ、ここから処理されます)
 # ==========================================
 import streamlit as st
 
