@@ -1,54 +1,10 @@
 import os
 import sys
-import subprocess
-import pathlib
 import math
-import multiprocessing
+import streamlit as st
 
 # バージョン情報
 APP_VERSION = "v1.1.0"
-
-if __name__ == "__main__":
-    # exe化時のマルチプロセス（子プロセス生成）を安全に行うための記述
-    multiprocessing.freeze_support()
-
-    # Streamlitの初期設定ファイル(credentials)が存在しない場合のエラー回避
-    streamlit_dir = pathlib.Path.home() / ".streamlit"
-    streamlit_dir.mkdir(exist_ok=True)
-    credentials_file = streamlit_dir / "credentials.toml"
-    if not credentials_file.exists():
-        credentials_file.write_text('[general]\nemail = ""\n')
-
-    # ▼ PyInstallerでexe化された場合の処理
-    if getattr(sys, 'frozen', False):
-        import streamlit.web.cli as stcli
-        
-        # 実行時のカレントディレクトリを、解凍された一時フォルダ(sys._MEIPASS)に変更
-        # これにより内部ファイルやreadmeの読み込みエラーを防止します
-        os.chdir(sys._MEIPASS)
-        
-        # サーバー起動設定（127.0.0.1を明示し、localhostの名前解決による404/接続エラーを防止）
-        sys.argv = [
-            "streamlit", "run", "app.py", 
-            "--server.headless=false", 
-            "--browser.gatherUsageStats=false",
-            "--server.address=127.0.0.1",
-            "--global.developmentMode=false"
-        ]
-        
-        sys.exit(stcli.main())
-        
-    # ▼ 通常の python app.py 実行の場合
-    elif "STREAMLIT_RUNNING" not in os.environ:
-        os.environ["STREAMLIT_RUNNING"] = "1"
-        os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
-        os.environ["STREAMLIT_SERVER_HEADLESS"] = "false"
-        
-        subprocess.run([sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__), "--server.address=127.0.0.1"])
-        sys.exit()
-
-# --- 2. ここからStreamlitのメイン処理 ---
-import streamlit as st
 
 def get_readme_text():
     """readme.mdを読み込む関数"""
@@ -405,154 +361,158 @@ def calculate_section(calc_shape, params, axis="強軸 (X軸回り)"):
 
 
 # ==========================================
-# UI 構築
+# UI 構築 (メイン処理)
 # ==========================================
-st.set_page_config(
-    page_title="SteelStrengthCalculationMiya", 
-    layout="wide",
-    menu_items={
-        'About': f"### 🏗️ SteelStrengthCalculationMiya\n**バージョン:** {APP_VERSION}\n\n鋼材・ボルト・ワイヤーロープの強度を計算するアプリケーションです。"
-    }
-)
+def main():
+    st.set_page_config(
+        page_title="SteelStrengthCalculationMiya", 
+        layout="wide",
+        menu_items={
+            'About': f"### 🏗️ SteelStrengthCalculationMiya\n**バージョン:** {APP_VERSION}\n\n鋼材・ボルト・ワイヤーロープの強度を計算するアプリケーションです。"
+        }
+    )
 
-st.title("🏗️ SteelStrengthCalculationMiya")
+    st.title("🏗️ SteelStrengthCalculationMiya")
 
-# --- サイドバー：計算モード切替 ---
-st.sidebar.header("🔄 計算モード切替")
-calc_mode = st.sidebar.radio(
-    "対象を選択してください", 
-    ["鋼材の強度計算", "ボルトの強度計算", "ワイヤーロープの計算"]
-)
-st.sidebar.divider()
+    # --- サイドバー：計算モード切替 ---
+    st.sidebar.header("🔄 計算モード切替")
+    calc_mode = st.sidebar.radio(
+        "対象を選択してください", 
+        ["鋼材の強度計算", "ボルトの強度計算", "ワイヤーロープの計算"]
+    )
+    st.sidebar.divider()
 
-if calc_mode == "鋼材の強度計算":
-    with st.sidebar:
-        st.header("⚙️ 鋼材の設定")
-        shape_list = list(STEEL_DB.keys())
-        shape = st.selectbox("鋼材形状", shape_list)
-        size_list = list(STEEL_DB[shape].keys())
-        selected_size = st.selectbox("規格寸法", size_list)
-        axis = st.radio("断面の向き", ["強軸 (X軸回り)", "弱軸 (Y軸回り)"])
-        p = STEEL_DB[shape][selected_size]
+    if calc_mode == "鋼材の強度計算":
+        with st.sidebar:
+            st.header("⚙️ 鋼材の設定")
+            shape_list = list(STEEL_DB.keys())
+            shape = st.selectbox("鋼材形状", shape_list)
+            size_list = list(STEEL_DB[shape].keys())
+            selected_size = st.selectbox("規格寸法", size_list)
+            axis = st.radio("断面の向き", ["強軸 (X軸回り)", "弱軸 (Y軸回り)"])
+            p = STEEL_DB[shape][selected_size]
 
-        st.markdown("---")
-        st.markdown("**【適用寸法】**")
-        for key, value in p.items():
-            st.markdown(f"- **{key}** : {value} mm")
+            st.markdown("---")
+            st.markdown("**【適用寸法】**")
+            for key, value in p.items():
+                st.markdown(f"- **{key}** : {value} mm")
+
+            st.divider()
+            L_mm = st.number_input("部材長 (支点間距離 L) (mm)", value=1000.0)
+            sf = st.number_input("安全率 (推奨3.0)", value=3.0, min_value=1.0)
+
+        # 計算実行
+        A, I, Z, w = calculate_section(shape, p, axis)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader(f"📋 断面性能 ({shape} - {selected_size})")
+            st.write(f"計算対象の軸: **{axis}**")
+            st.write(f"断面積 (A): **{A:.2f}** mm²")
+            st.write(f"断面二次モーメント (I): **{I:.2e}** mm⁴")
+            st.write(f"断面係数 (Z): **{Z:.2e}** mm³")
+            st.write(f"単位重量: **{w:.2f}** kg/m")
+            st.write(f"総重量: **{w * L_mm / 1000:.2f}** kg")
+
+        with col2:
+            st.subheader("⚖️ 強度計算結果")
+            if L_mm > 0 and I > 0 and Z > 0:
+                p_elastic = (MATERIAL_PROPS["Yield"] * Z * 4) / L_mm / 9.80665
+                p_break = (MATERIAL_PROPS["Tensile"] * Z * 4) / L_mm / 9.80665
+                p_safe = p_elastic / sf
+                
+                st.metric("許容荷重 (安全荷重)", f"{p_safe:.2f} kg")
+                st.write(f"弾性限度 (降伏点基準): **{p_elastic:.2f}** kg")
+                st.write(f"破断限度 (引張強さ基準): **{p_break:.2f}** kg")
+                
+                p_n = p_safe * 9.80665
+                delta = (p_n * L_mm**3) / (48 * MATERIAL_PROPS["E"] * I)
+                st.metric("許容荷重時の最大たわみ", f"{delta:.2f} mm")
+            else:
+                st.error("入力値が不正のため計算できません。")
 
         st.divider()
-        L_mm = st.number_input("部材長 (支点間距離 L) (mm)", value=1000.0)
-        sf = st.number_input("安全率 (推奨3.0)", value=3.0, min_value=1.0)
+        st.caption("注：本アプリは単純支持梁の中央集中荷重モデルを用いた計算です。角Rやテーパー形状などは省略した矩形近似による簡易計算を行っています。アングル等の弱軸計算は主軸ではなく図心を通るY軸回りとして計算しています。")
 
-    # 計算実行
-    A, I, Z, w = calculate_section(shape, p, axis)
+    elif calc_mode == "ボルトの強度計算":
+        with st.sidebar:
+            st.header("⚙️ ボルトの設定")
+            bolt_size = st.selectbox("ねじの呼び (メートル並目)", list(BOLT_SIZES.keys()))
+            bolt_class = st.selectbox("強度区分", list(BOLT_CLASSES.keys()))
+            sf_bolt = st.number_input("安全率 (推奨: 静荷重3.0, 動荷重5.0〜)", value=3.0, min_value=1.0)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader(f"📋 断面性能 ({shape} - {selected_size})")
-        st.write(f"計算対象の軸: **{axis}**")
-        st.write(f"断面積 (A): **{A:.2f}** mm²")
-        st.write(f"断面二次モーメント (I): **{I:.2e}** mm⁴")
-        st.write(f"断面係数 (Z): **{Z:.2e}** mm³")
-        st.write(f"単位重量: **{w:.2f}** kg/m")
-        st.write(f"総重量: **{w * L_mm / 1000:.2f}** kg")
-
-    with col2:
-        st.subheader("⚖️ 強度計算結果")
-        if L_mm > 0 and I > 0 and Z > 0:
-            p_elastic = (MATERIAL_PROPS["Yield"] * Z * 4) / L_mm / 9.80665
-            p_break = (MATERIAL_PROPS["Tensile"] * Z * 4) / L_mm / 9.80665
-            p_safe = p_elastic / sf
-            
-            st.metric("許容荷重 (安全荷重)", f"{p_safe:.2f} kg")
-            st.write(f"弾性限度 (降伏点基準): **{p_elastic:.2f}** kg")
-            st.write(f"破断限度 (引張強さ基準): **{p_break:.2f}** kg")
-            
-            p_n = p_safe * 9.80665
-            delta = (p_n * L_mm**3) / (48 * MATERIAL_PROPS["E"] * I)
-            st.metric("許容荷重時の最大たわみ", f"{delta:.2f} mm")
-        else:
-            st.error("入力値が不正のため計算できません。")
-
-    st.divider()
-    st.caption("注：本アプリは単純支持梁の中央集中荷重モデルを用いた計算です。角Rやテーパー形状などは省略した矩形近似による簡易計算を行っています。アングル等の弱軸計算は主軸ではなく図心を通るY軸回りとして計算しています。")
-
-elif calc_mode == "ボルトの強度計算":
-    with st.sidebar:
-        st.header("⚙️ ボルトの設定")
-        bolt_size = st.selectbox("ねじの呼び (メートル並目)", list(BOLT_SIZES.keys()))
-        bolt_class = st.selectbox("強度区分", list(BOLT_CLASSES.keys()))
-        sf_bolt = st.number_input("安全率 (推奨: 静荷重3.0, 動荷重5.0〜)", value=3.0, min_value=1.0)
-
-    # 計算実行
-    A_s = BOLT_SIZES[bolt_size]
-    y_stress = BOLT_CLASSES[bolt_class]["Yield"]
-    t_stress = BOLT_CLASSES[bolt_class]["Tensile"]
-    
-    # 荷重計算 (N -> kgf に変換: 1kgf = 9.80665N)
-    yield_load_kg = (y_stress * A_s) / 9.80665
-    break_load_kg = (t_stress * A_s) / 9.80665
-    allowable_tensile = yield_load_kg / sf_bolt
-    # せん断強さは一般的に引張降伏応力の約60%として計算
-    allowable_shear = allowable_tensile * 0.6 
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader(f"📋 ボルトの性能 ({bolt_size} - 強度区分{bolt_class})")
-        st.write(f"有効断面積 (As): **{A_s:.1f}** mm²")
-        st.write(f"降伏点 (耐力): **{y_stress}** N/mm²")
-        st.write(f"引張強さ: **{t_stress}** N/mm²")
-        st.write(f"降伏荷重 (伸び始め): **{yield_load_kg:.2f}** kg")
-        st.write(f"破断荷重 (ちぎれる力): **{break_load_kg:.2f}** kg")
-
-    with col2:
-        st.subheader("⚖️ 強度計算結果")
-        st.metric("許容引張荷重 (軸方向)", f"{allowable_tensile:.2f} kg")
-        st.metric("許容せん断荷重 (横方向)", f"{allowable_shear:.2f} kg")
-        st.caption(f"※安全率 {sf_bolt} で計算しています。せん断許容荷重は引張の約60%として算出しています。")
-
-elif calc_mode == "ワイヤーロープの計算":
-    with st.sidebar:
-        st.header("⚙️ ワイヤー・玉掛けの設定")
-        rope_type = st.selectbox("ロープの種類", list(WIRE_DB.keys()))
-        dia = st.selectbox("ロープ径", list(WIRE_DB[rope_type].keys()))
-        sf_wire = st.number_input("安全率 (クレーン等玉掛け推奨: 6.0)", value=6.0, min_value=1.0)
+        # 計算実行
+        A_s = BOLT_SIZES[bolt_size]
+        y_stress = BOLT_CLASSES[bolt_class]["Yield"]
+        t_stress = BOLT_CLASSES[bolt_class]["Tensile"]
         
+        # 荷重計算 (N -> kgf に変換: 1kgf = 9.80665N)
+        yield_load_kg = (y_stress * A_s) / 9.80665
+        break_load_kg = (t_stress * A_s) / 9.80665
+        allowable_tensile = yield_load_kg / sf_bolt
+        # せん断強さは一般的に引張降伏応力の約60%として計算
+        allowable_shear = allowable_tensile * 0.6 
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader(f"📋 ボルトの性能 ({bolt_size} - 強度区分{bolt_class})")
+            st.write(f"有効断面積 (As): **{A_s:.1f}** mm²")
+            st.write(f"降伏点 (耐力): **{y_stress}** N/mm²")
+            st.write(f"引張強さ: **{t_stress}** N/mm²")
+            st.write(f"降伏荷重 (伸び始め): **{yield_load_kg:.2f}** kg")
+            st.write(f"破断荷重 (ちぎれる力): **{break_load_kg:.2f}** kg")
+
+        with col2:
+            st.subheader("⚖️ 強度計算結果")
+            st.metric("許容引張荷重 (軸方向)", f"{allowable_tensile:.2f} kg")
+            st.metric("許容せん断荷重 (横方向)", f"{allowable_shear:.2f} kg")
+            st.caption(f"※安全率 {sf_bolt} で計算しています。せん断許容荷重は引張の約60%として算出しています。")
+
+    elif calc_mode == "ワイヤーロープの計算":
+        with st.sidebar:
+            st.header("⚙️ ワイヤー・玉掛けの設定")
+            rope_type = st.selectbox("ロープの種類", list(WIRE_DB.keys()))
+            dia = st.selectbox("ロープ径", list(WIRE_DB[rope_type].keys()))
+            sf_wire = st.number_input("安全率 (クレーン等玉掛け推奨: 6.0)", value=6.0, min_value=1.0)
+            
+            st.divider()
+            st.markdown("**【玉掛け条件】**")
+            num_wires = st.number_input("吊り本数", value=2, min_value=1)
+            angle = st.slider("吊り角度 (度)", 0, 120, 60, step=15)
+
+        # 計算実行
+        break_load_kn = WIRE_DB[rope_type][dia]
+        # kN -> kgf 変換
+        break_load_kg = break_load_kn * 1000 / 9.80665
+        safe_load_per_rope = break_load_kg / sf_wire
+        
+        # 吊り角度による張力係数（角度θのとき、cos(θ/2) 倍の荷重まで許容できる）
+        angle_rad = math.radians(angle / 2)
+        efficiency = math.cos(angle_rad)
+        total_safe_load = safe_load_per_rope * num_wires * efficiency
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader(f"📋 ロープ性能 ({rope_type} - {dia})")
+            st.write(f"破断荷重 (カタログ値): **{break_load_kn:.2f}** kN")
+            st.write(f"破断荷重 (kgf換算): **{break_load_kg:.2f}** kg")
+            st.write(f"1本あたりの基本安全荷重: **{safe_load_per_rope:.2f}** kg")
+            st.caption(f"※安全率 {sf_wire} で計算")
+
+        with col2:
+            st.subheader("⚖️ 玉掛け強度計算結果")
+            st.write(f"吊り本数: **{num_wires}** 本")
+            st.write(f"吊り角度: **{angle}** 度")
+            st.metric("システム全体の許容荷重", f"{total_safe_load:.2f} kg")
+            st.caption("※端末処理の効率（アイ加工やクリップ留めによる強度低下係数）は1.0として計算しています。実際の運用ではさらに20%〜程度の強度低下を見込んでください。")
+
+    # --- サイドバー：アプリ情報・Readme表示 ---
+    with st.sidebar:
         st.divider()
-        st.markdown("**【玉掛け条件】**")
-        num_wires = st.number_input("吊り本数", value=2, min_value=1)
-        angle = st.slider("吊り角度 (度)", 0, 120, 60, step=15)
+        with st.expander("ℹ️ アプリ情報 / Readme"):
+            st.write(f"**バージョン:** {APP_VERSION}")
+            st.markdown("---")
+            st.markdown(get_readme_text())
 
-    # 計算実行
-    break_load_kn = WIRE_DB[rope_type][dia]
-    # kN -> kgf 変換
-    break_load_kg = break_load_kn * 1000 / 9.80665
-    safe_load_per_rope = break_load_kg / sf_wire
-    
-    # 吊り角度による張力係数（角度θのとき、cos(θ/2) 倍の荷重まで許容できる）
-    angle_rad = math.radians(angle / 2)
-    efficiency = math.cos(angle_rad)
-    total_safe_load = safe_load_per_rope * num_wires * efficiency
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader(f"📋 ロープ性能 ({rope_type} - {dia})")
-        st.write(f"破断荷重 (カタログ値): **{break_load_kn:.2f}** kN")
-        st.write(f"破断荷重 (kgf換算): **{break_load_kg:.2f}** kg")
-        st.write(f"1本あたりの基本安全荷重: **{safe_load_per_rope:.2f}** kg")
-        st.caption(f"※安全率 {sf_wire} で計算")
-
-    with col2:
-        st.subheader("⚖️ 玉掛け強度計算結果")
-        st.write(f"吊り本数: **{num_wires}** 本")
-        st.write(f"吊り角度: **{angle}** 度")
-        st.metric("システム全体の許容荷重", f"{total_safe_load:.2f} kg")
-        st.caption("※端末処理の効率（アイ加工やクリップ留めによる強度低下係数）は1.0として計算しています。実際の運用ではさらに20%〜程度の強度低下を見込んでください。")
-
-# --- サイドバー：アプリ情報・Readme表示 ---
-with st.sidebar:
-    st.divider()
-    with st.expander("ℹ️ アプリ情報 / Readme"):
-        st.write(f"**バージョン:** {APP_VERSION}")
-        st.markdown("---")
-        st.markdown(get_readme_text())
+if __name__ == "__main__":
+    main()
