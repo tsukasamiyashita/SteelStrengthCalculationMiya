@@ -24,9 +24,10 @@ jobs:
         pip install pyinstaller
 
     - name: Build with PyInstaller
+      # --onefile を --onedir に変更しました
       run: >
         pyinstaller 
-        --onefile 
+        --onedir 
         --windowed 
         --name "SteelStrengthCalculationMiya-v1.1.0" 
         --collect-all streamlit 
@@ -38,4 +39,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: SteelStrengthCalculationMiya-v1.1.0
-        path: dist/SteelStrengthCalculationMiya-v1.1.0.exe
+        # フォルダごとアップロードするようにパスを変更しました
+        path: dist/SteelStrengthCalculationMiya-v1.1.0/
