@@ -1,6 +1,7 @@
 import os
 import sys
 import math
+import time
 import streamlit as st
 
 # バージョン情報
@@ -506,13 +507,22 @@ def main():
             st.metric("システム全体の許容荷重", f"{total_safe_load:.2f} kg")
             st.caption("※端末処理の効率（アイ加工やクリップ留めによる強度低下係数）は1.0として計算しています。実際の運用ではさらに20%〜程度の強度低下を見込んでください。")
 
-    # --- サイドバー：アプリ情報・Readme表示 ---
+    # --- サイドバー：アプリ情報・終了ボタン ---
     with st.sidebar:
         st.divider()
         with st.expander("ℹ️ アプリ情報 / Readme"):
             st.write(f"**バージョン:** {APP_VERSION}")
             st.markdown("---")
             st.markdown(get_readme_text())
+            
+        # ここにプロセス終了（キル）用のボタンを追加
+        st.divider()
+        st.markdown("### 🛑 システム管理")
+        st.caption("完全に終了させる場合は下のボタンを押してください。")
+        if st.button("アプリを完全に終了する", type="primary", use_container_width=True):
+            st.success("プロセスを終了しました。このブラウザタブを「×」で閉じてください。")
+            time.sleep(1) # メッセージを画面に反映させるための猶予
+            os._exit(0) # ここでPythonのプロセスを強制終了します
 
 if __name__ == "__main__":
     main()
