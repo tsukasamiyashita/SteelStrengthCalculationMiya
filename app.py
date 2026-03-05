@@ -1,70 +1,10 @@
 import os
 import sys
 import math
-import subprocess
-import pathlib
-import multiprocessing
+import streamlit as st
 
 # バージョン情報
 APP_VERSION = "v1.1.0"
-PORT = 8501
-
-# ==========================================
-# 起動・プロセス管理 (二重起動の防止とクリーンアップ)
-# ==========================================
-if __name__ == "__main__":
-    # exe化時のマルチプロセスを安全に行うための記述
-    multiprocessing.freeze_support()
-
-    # sys.argv の長さが 1 の時だけ「ランチャー（起動係）」として動かします。
-    # Streamlitが裏で動いている時は長さが2以上になるため、この部分はスキップされます。
-    if len(sys.argv) == 1:
-        
-        # Streamlitの設定ファイル作成（エラー防止）
-        streamlit_dir = pathlib.Path.home() / ".streamlit"
-        streamlit_dir.mkdir(exist_ok=True)
-        credentials_file = streamlit_dir / "credentials.toml"
-        if not credentials_file.exists():
-            credentials_file.write_text('[general]\nemail = ""\n')
-
-        # ▼ 前回ブラウザの「×」で閉じて残ってしまったプロセスを強制終了して綺麗にする ▼
-        try:
-            output = subprocess.check_output("netstat -ano", shell=True).decode()
-            for line in output.strip().split('\n'):
-                # 8501ポートを使用中で、かつLISTENING状態のものを探す
-                if f":{PORT}" in line and "LISTENING" in line:
-                    pid = line.strip().split()[-1]
-                    # 今動かそうとしている自分自身のプロセスでなければ強制終了
-                    if str(os.getpid()) != pid:
-                        subprocess.call(f"taskkill /F /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:
-            pass  # 何も見つからなければそのまま進む
-
-        # ▼ Streamlitを起動する ▼
-        if getattr(sys, 'frozen', False):
-            # exeとして実行されている場合
-            import streamlit.web.cli as stcli
-            os.chdir(sys._MEIPASS)
-            # Streamlitを起動するための「呪文（引数）」をセット
-            sys.argv = [
-                "streamlit", "run", "app.py",
-                f"--server.port={PORT}",
-                "--server.headless=false",
-                "--browser.gatherUsageStats=false",
-                "--server.address=127.0.0.1",
-                "--global.developmentMode=false"
-            ]
-            sys.exit(stcli.main())
-        else:
-            # 開発環境で python app.py と実行した場合
-            subprocess.run([sys.executable, "-m", "streamlit", "run", __file__, f"--server.port={PORT}", "--server.address=127.0.0.1"])
-            sys.exit()
-
-# ==========================================
-# ここから下は Streamlit によって読み込まれるUI・メインロジック
-# (Streamlit実行時は上のランチャー部分がスキップされ、ここから処理されます)
-# ==========================================
-import streamlit as st
 
 def get_readme_text():
     """readme.mdを読み込む関数"""
