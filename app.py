@@ -375,6 +375,15 @@ def main():
 
     st.title("🏗️ SteelStrengthCalculationMiya")
 
+    # --- サイドバー：システム管理（最上部に配置して視認性アップ） ---
+    with st.sidebar:
+        st.error("⚠️ **【重要】終了時の注意**\n\nブラウザの「×」ボタンで閉じるとシステムが動き続けてしまいます。終了時は**必ず下のボタン**を押してください。")
+        if st.button("🛑 アプリを完全に終了する", type="primary", use_container_width=True):
+            st.success("✅ プロセスを安全に終了しました。\n\nこのブラウザタブを「×」で閉じてください。")
+            time.sleep(1.5) # メッセージをユーザーが読めるよう少し待機
+            os._exit(0) # ここでPythonのプロセスを強制終了
+        st.divider()
+
     # --- サイドバー：計算モード切替 ---
     st.sidebar.header("🔄 計算モード切替")
     calc_mode = st.sidebar.radio(
@@ -507,25 +516,13 @@ def main():
             st.metric("システム全体の許容荷重", f"{total_safe_load:.2f} kg")
             st.caption("※端末処理の効率（アイ加工やクリップ留めによる強度低下係数）は1.0として計算しています。実際の運用ではさらに20%〜程度の強度低下を見込んでください。")
 
-    # --- サイドバー：アプリ情報・終了ボタン ---
+    # --- サイドバー：アプリ情報 ---
     with st.sidebar:
         st.divider()
         with st.expander("ℹ️ アプリ情報 / Readme"):
             st.write(f"**バージョン:** {APP_VERSION}")
             st.markdown("---")
             st.markdown(get_readme_text())
-            
-        # ここにプロセス終了（キル）用のボタンを追加
-        st.divider()
-        st.markdown("### 🛑 システム管理")
-        
-        # ブラウザの「×」で閉じないように強く警告するUIを追加
-        st.error("⚠️ **【重要】終了時の注意**\n\nブラウザの「×」ボタンで閉じると、見えない所でシステムが動き続けてしまいます。\nアプリを終了する際は、**必ず下のボタンを押して**完全に停止させてください。")
-        
-        if st.button("アプリを完全に終了する", type="primary", use_container_width=True):
-            st.success("✅ プロセスを安全に終了しました。\n\nこのブラウザタブを「×」で閉じてください。")
-            time.sleep(1.5) # メッセージをユーザーが読めるよう少し待機
-            os._exit(0) # ここでPythonのプロセスを強制終了
 
 if __name__ == "__main__":
     main()
